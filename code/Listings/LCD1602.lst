@@ -1,0 +1,115 @@
+C51 COMPILER V9.60.7.0   LCD1602                                                           12/25/2025 11:33:45 PAGE 1   
+
+
+C51 COMPILER V9.60.7.0, COMPILATION OF MODULE LCD1602
+OBJECT MODULE PLACED IN .\Objects\LCD1602.obj
+COMPILER INVOKED BY: C:\Users\Alex\AppData\Local\Keil5\C51\BIN\C51.EXE Drivers\LCD1602.c OPTIMIZE(8,SPEED) BROWSE INCDIR
+                    -(.\Drivers) DEBUG OBJECTEXTEND PRINT(.\Listings\LCD1602.lst) TABS(2) OBJECT(.\Objects\LCD1602.obj)
+
+line level    source
+
+   1          /**
+   2           * @file LCD1602.c
+   3           * @brief LCD1602液晶显示屏驱动
+   4           */
+   5          
+   6          #include "LCD1602.h"
+   7          
+   8          /**
+   9           * @brief 向LCD1602写入命令
+  10           */
+  11          void lcd1602_write_cmd(uint8_t cmd) {
+  12   1        LCD1602_RS = 0;          // 选择指令寄存器 (RS=0)
+  13   1        LCD1602_RW = 0;          // 选择写模式 (RW=0)
+  14   1        LCD1602_E = 0;           // 使能信号初始为低电平
+  15   1        LCD1602_DATAPORT = cmd;  // 将命令数据输出到数据总线
+  16   1      
+  17   1        delay_ms(1);
+  18   1        LCD1602_E = 1;  // 拉高使能信号，启动数据锁存
+  19   1        delay_ms(1);
+  20   1        LCD1602_E = 0;  // 拉低使能信号，完成数据写入
+  21   1      }
+  22          
+  23          /**
+  24           * @brief 向LCD1602写入数据
+  25           */
+  26          void lcd1602_write_data(uint8_t dat) {
+  27   1        LCD1602_RS = 1;
+  28   1        LCD1602_RW = 0;
+  29   1        LCD1602_E = 0;
+  30   1        LCD1602_DATAPORT = dat;
+  31   1      
+  32   1        delay_ms(1);
+  33   1        LCD1602_E = 1;
+  34   1        delay_ms(1);
+  35   1        LCD1602_E = 0;
+  36   1      }
+  37          
+  38          /**
+  39           * @brief 初始化LCD1602显示器
+  40           */
+  41          void lcd1602_init(void) {
+  42   1        lcd1602_write_cmd(0x38);
+  43   1        lcd1602_write_cmd(0x0C);
+  44   1        lcd1602_write_cmd(0x06);
+  45   1        lcd1602_write_cmd(0x01);
+  46   1      }
+  47          
+  48          /**
+  49           * @brief 清除LCD1602显示内容
+  50           */
+  51          void lcd1602_clear(void) { lcd1602_write_cmd(0x01); }
+  52          
+  53          /**
+  54           * @brief 在指定位置显示字符串
+C51 COMPILER V9.60.7.0   LCD1602                                                           12/25/2025 11:33:45 PAGE 2   
+
+  55           */
+  56          void lcd1602_show_string(uint8_t x, uint8_t y, uint8_t* str) {
+  57   1        uint16_t i = 0;  // 字符计数器，用于跟踪当前显示的字符位置
+  58   1      
+  59   1        // 边界检查
+  60   1        if (y > 1 || x > 15) {
+  61   2          return;
+  62   2        }
+  63   1      
+  64   1        if (y == 0) {
+  65   2          while (*str != '\0') {
+  66   3            if (i < 16 - x) {
+  67   4              // 计算第一行显示地址：0x80 + 当前位置
+  68   4              lcd1602_write_cmd(0x80 + i + x);
+  69   4            } else {
+  70   4              // 超出第一行范围，换到第二行显示
+  71   4              lcd1602_write_cmd(0x40 + 0x80 + i + x - 16);
+  72   4            }
+  73   3            lcd1602_write_data(*str++);  // 写入字符数据并移动指针
+  74   3            i++;
+  75   3          }
+  76   2        } else {
+  77   2          while (*str != '\0') {
+  78   3            if (i < 16 - x) {
+  79   4              // 计算第二行显示地址：0x80 + 0x40 + 当前位置
+  80   4              lcd1602_write_cmd(0x80 + 0x40 + i + x);
+  81   4            } else {
+  82   4              // 超出第二行范围，换到第一行继续显示
+  83   4              lcd1602_write_cmd(0x80 + i + x - 16);
+  84   4            }
+  85   3            lcd1602_write_data(*str++);
+  86   3            i++;
+  87   3          }
+  88   2        }
+  89   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    269    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----       6
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

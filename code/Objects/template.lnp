@@ -1,0 +1,7 @@
+".\Objects\DEV51.obj",
+".\Objects\LCD1602.obj",
+".\Objects\DS18B20.obj",
+".\Objects\MainTask.obj",
+".\Objects\KEY.obj" 
+TO ".\Objects\template" Rtx51Tiny 
+PRINT(".\Listings\template.m51")

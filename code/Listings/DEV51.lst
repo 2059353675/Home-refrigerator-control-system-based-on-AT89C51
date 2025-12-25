@@ -1,0 +1,41 @@
+C51 COMPILER V9.60.7.0   DEV51                                                             12/25/2025 11:33:45 PAGE 1   
+
+
+C51 COMPILER V9.60.7.0, COMPILATION OF MODULE DEV51
+OBJECT MODULE PLACED IN .\Objects\DEV51.obj
+COMPILER INVOKED BY: C:\Users\Alex\AppData\Local\Keil5\C51\BIN\C51.EXE Drivers\DEV51.c OPTIMIZE(8,SPEED) BROWSE INCDIR(.
+                    -\Drivers) DEBUG OBJECTEXTEND PRINT(.\Listings\DEV51.lst) TABS(2) OBJECT(.\Objects\DEV51.obj)
+
+line level    source
+
+   1          #include "DEV51.H"
+   2          
+   3          void delay_us(uint16_t us) { while (us--); }
+   4          
+   5          void delay_10us(uint16_t tens_us) {
+   6   1        uint16_t i;
+   7   1        for (i = 0; i < tens_us; i++) {
+   8   2          delay_us(10);
+   9   2        }
+  10   1      }
+  11          
+  12          void delay_ms(uint16_t ms) {
+  13   1        unsigned int i, j;
+  14   1        for (i = 0; i < ms; i++) {
+  15   2          for (j = 0; j < 123; j++);
+  16   2        }
+  17   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     70    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

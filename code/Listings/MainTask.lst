@@ -1,0 +1,299 @@
+C51 COMPILER V9.60.7.0   MAINTASK                                                          12/25/2025 11:33:45 PAGE 1   
+
+
+C51 COMPILER V9.60.7.0, COMPILATION OF MODULE MAINTASK
+OBJECT MODULE PLACED IN .\Objects\MainTask.obj
+COMPILER INVOKED BY: C:\Users\Alex\AppData\Local\Keil5\C51\BIN\C51.EXE Tasks\MainTask.c OPTIMIZE(8,SPEED) BROWSE INCDIR(
+                    -.\Drivers) DEBUG OBJECTEXTEND PRINT(.\Listings\MainTask.lst) TABS(2) OBJECT(.\Objects\MainTask.obj)
+
+line level    source
+
+   1          /**
+   2           * @file MainTask.c
+   3           * @author Zheng Yujun
+   4           */
+   5          
+   6          #include <RTX51TNY.H>
+   7          
+   8          #include "DEV51.H"
+   9          #include "DS18B20.H"
+  10          #include "KEY.H"
+  11          #include "LCD1602.H"
+  12          
+  13          // 任务定义
+  14          #define TASK_ID_INIT 0
+  15          #define TASK_ID_TEMP_READ 1
+  16          #define TASK_ID_DISPLAY 2
+  17          #define TASK_ID_COMPRESSOR 3
+  18          #define TASK_ID_BUTTON 4
+  19          #define TASK_ID_DOOR_MONITOR 5
+  20          
+  21          // 引脚定义
+  22          sbit COMPRESSOR_REFRIG_PIN = P1 ^ 4;  // 冷藏室继电器
+  23          sbit COMPRESSOR_FREEZE_PIN = P1 ^ 5;  // 冷冻室继电器
+  24          sbit DOOR_SENSOR_PIN = P0 ^ 4;        // 冰箱门状态检测引脚
+  25          sbit BUZZER_PIN = P0 ^ 5;             // 蜂鸣器引脚
+  26          sbit WARNING_LED_PIN = P1 ^ 6;        // 警告灯引脚
+  27          
+  28          // 传感器 ROM ID
+  29          const uint8_t rom_id_refrig[8] = {0x28, 0x30, 0xC5, 0xB8,
+  30                                            0x22, 0x00, 0x00, 0x55};
+  31          const uint8_t rom_id_freeze[8] = {0x28, 0x30, 0xC5, 0xB8,
+  32                                            0x33, 0x00, 0x00, 0xB4};
+  33          
+  34          // 阈值与目标温度超过该值则启动继电器
+  35          #define THRESHOLD 5
+  36          
+  37          // 全局变量
+  38          int16_t temp_refrig;             // 当前冷藏室温度
+  39          int16_t temp_freeze;             // 当前冷冻室温度
+  40          int16_t set_temp_refrig = 40;    // 冷藏室目标温度初始值，单位为 0.1°C
+  41          int16_t set_temp_freeze = -180;  // 冷冻室目标温度初始值
+  42          bit display_update_flag = 0;     // 触发显示更新标志位
+  43          bit door_timeout_flag = 0;       // 冰箱门常开标志位
+  44          
+  45          /**
+  46           * @brief 将温度值格式化为字符串
+  47           * @param temp 温度值，单位为 0.1°C
+  48           * @param str 输出字符串缓冲区
+  49           */
+  50          void format_temp_string(int16_t temp, uint8_t* str) {
+  51   1        uint8_t int_part, dec_part;
+  52   1        uint8_t is_negative = 0;
+  53   1        uint8_t idx = 0;
+  54   1        uint16_t temp_abs;
+C51 COMPILER V9.60.7.0   MAINTASK                                                          12/25/2025 11:33:45 PAGE 2   
+
+  55   1      
+  56   1        if (temp < 0) {
+  57   2          is_negative = 1;
+  58   2          temp_abs = -temp;
+  59   2        } else {
+  60   2          temp_abs = temp;
+  61   2        }
+  62   1      
+  63   1        int_part = temp_abs / 10;
+  64   1        dec_part = temp_abs % 10;
+  65   1      
+  66   1        if (is_negative) {
+  67   2          str[idx++] = '-';
+  68   2        } else {
+  69   2          str[idx++] = ' ';
+  70   2        }
+  71   1      
+  72   1        // 处理十位与个位数字
+  73   1        if (int_part >= 10) {
+  74   2          str[idx++] = (int_part / 10) + '0';
+  75   2          str[idx++] = (int_part % 10) + '0';
+  76   2        } else {
+  77   2          str[idx++] = ' ';
+  78   2          str[idx++] = (int_part % 10) + '0';
+  79   2        }
+  80   1      
+  81   1        str[idx++] = '.';
+  82   1        str[idx++] = dec_part + '0';
+  83   1        //   str[idx++] = 'C';
+  84   1        str[idx] = '\0';
+  85   1      }
+  86          
+  87          /**
+  88           * @brief 初始化任务
+  89           */
+  90          void task_init(void) _task_ TASK_ID_INIT {
+  91   1        os_create_task(TASK_ID_TEMP_READ);
+  92   1        os_create_task(TASK_ID_DISPLAY);
+  93   1        os_create_task(TASK_ID_COMPRESSOR);
+  94   1        os_create_task(TASK_ID_BUTTON);
+  95   1        os_create_task(TASK_ID_DOOR_MONITOR);
+  96   1      
+  97   1        os_delete_task(TASK_ID_INIT);
+  98   1      }
+  99          
+ 100          /**
+ 101           * @brief 温度读取任务
+ 102           */
+ 103          void task_temp_read(void) _task_ TASK_ID_TEMP_READ {
+ 104   1        while (1) {
+ 105   2          temp_refrig = get_temper(rom_id_refrig);
+ 106   2          temp_freeze = get_temper(rom_id_freeze);
+ 107   2          display_update_flag = 1;
+ 108   2      
+ 109   2          os_wait(K_TMO, 100, 0);
+ 110   2        }
+ 111   1      }
+ 112          
+ 113          /**
+ 114           * @brief 显示更新任务
+ 115           */
+ 116          void task_display(void) _task_ TASK_ID_DISPLAY {
+C51 COMPILER V9.60.7.0   MAINTASK                                                          12/25/2025 11:33:45 PAGE 3   
+
+ 117   1        uint8_t temp_str[16];
+ 118   1      
+ 119   1        lcd1602_init();
+ 120   1        lcd1602_clear();
+ 121   1        lcd1602_show_string(0, 0, "Ref:");
+ 122   1        lcd1602_show_string(0, 1, "Fre:");
+ 123   1      
+ 124   1        while (1) {
+ 125   2          if (display_update_flag) {
+ 126   3            // 显示冷藏室当前温度和设定温度
+ 127   3            format_temp_string(temp_refrig, temp_str);
+ 128   3            lcd1602_show_string(4, 0, temp_str);
+ 129   3            format_temp_string(set_temp_refrig, temp_str);
+ 130   3            lcd1602_show_string(11, 0, temp_str);
+ 131   3      
+ 132   3            // 显示冷冻室当前温度和设定温度
+ 133   3            format_temp_string(temp_freeze, temp_str);
+ 134   3            lcd1602_show_string(4, 1, temp_str);
+ 135   3            format_temp_string(set_temp_freeze, temp_str);
+ 136   3            lcd1602_show_string(11, 1, temp_str);
+ 137   3      
+ 138   3            display_update_flag = 0;
+ 139   3          }
+ 140   2      
+ 141   2          os_wait(K_TMO, 50, 0);
+ 142   2        }
+ 143   1      }
+ 144          
+ 145          /**
+ 146           * @brief 压缩机控制任务
+ 147           */
+ 148          void task_compressor(void) _task_ TASK_ID_COMPRESSOR {
+ 149   1        bit refriger_on = 0;  // 记录压缩机当前状态
+ 150   1        bit freeze_on = 0;
+ 151   1      
+ 152   1        COMPRESSOR_REFRIG_PIN = 0;
+ 153   1        COMPRESSOR_FREEZE_PIN = 0;
+ 154   1      
+ 155   1        while (1) {
+ 156   2          if (door_timeout_flag) {
+ 157   3            COMPRESSOR_REFRIG_PIN = 0;
+ 158   3            COMPRESSOR_FREEZE_PIN = 0;
+ 159   3            refriger_on = 0;
+ 160   3            freeze_on = 0;
+ 161   3          } else {
+ 162   3            // 冰箱压缩机控制
+ 163   3            if (!refriger_on && (temp_refrig > set_temp_refrig + THRESHOLD)) {
+ 164   4              refriger_on = 1;
+ 165   4              COMPRESSOR_REFRIG_PIN = 1;
+ 166   4            } else if (refriger_on && (temp_refrig < set_temp_refrig - THRESHOLD)) {
+ 167   4              refriger_on = 0;
+ 168   4              COMPRESSOR_REFRIG_PIN = 0;
+ 169   4            }
+ 170   3      
+ 171   3            // 冷冻室压缩机控制
+ 172   3            if (!freeze_on && (temp_freeze > set_temp_freeze + THRESHOLD)) {
+ 173   4              freeze_on = 1;
+ 174   4              COMPRESSOR_FREEZE_PIN = 1;
+ 175   4            } else if (freeze_on && (temp_freeze < set_temp_freeze - THRESHOLD)) {
+ 176   4              freeze_on = 0;
+ 177   4              COMPRESSOR_FREEZE_PIN = 0;
+ 178   4            }
+C51 COMPILER V9.60.7.0   MAINTASK                                                          12/25/2025 11:33:45 PAGE 4   
+
+ 179   3          }
+ 180   2      
+ 181   2          os_wait(K_TMO, 20, 0);
+ 182   2        }
+ 183   1      }
+ 184          
+ 185          /**
+ 186           * @brief 任务4：按键处理任务
+ 187           */
+ 188          void task_button(void) _task_ TASK_ID_BUTTON {
+ 189   1        uint8_t key;
+ 190   1      
+ 191   1        while (1) {
+ 192   2          key = key_scan(1);  // 连续扫描模式
+ 193   2      
+ 194   2          switch (key) {
+ 195   3            case KEY_1_PRESS:
+ 196   3              // +0.1°C 冷藏室
+ 197   3              if (set_temp_refrig < 100) {
+ 198   4                set_temp_refrig += 1;
+ 199   4                display_update_flag = 1;
+ 200   4              }
+ 201   3              break;
+ 202   3      
+ 203   3            case KEY_2_PRESS:
+ 204   3              // -0.1°C 冷藏室
+ 205   3              if (set_temp_refrig > 0) {
+ 206   4                set_temp_refrig -= 1;
+ 207   4                display_update_flag = 1;
+ 208   4              }
+ 209   3              break;
+ 210   3      
+ 211   3            case KEY_3_PRESS:
+ 212   3              // +0.1°C 冷冻室
+ 213   3              if (set_temp_freeze < -80) {
+ 214   4                set_temp_freeze += 1;
+ 215   4                display_update_flag = 1;
+ 216   4              }
+ 217   3              break;
+ 218   3      
+ 219   3            case KEY_4_PRESS:
+ 220   3              // -0.1°C 冷冻室
+ 221   3              if (set_temp_freeze > -220) {
+ 222   4                set_temp_freeze -= 1;
+ 223   4                display_update_flag = 1;
+ 224   4              }
+ 225   3              break;
+ 226   3      
+ 227   3            case KEY_UNPRESS:
+ 228   3              break;
+ 229   3          }
+ 230   2      
+ 231   2          os_wait(K_TMO, 1, 0);
+ 232   2        }
+ 233   1      }
+ 234          
+ 235          /**
+ 236           * @brief 任务5：冰箱门状态监控任务
+ 237           */
+ 238          void task_door_monitor(void) _task_ TASK_ID_DOOR_MONITOR {
+ 239   1        uint16_t door_open_time = 0;  // 门开启时间计数（单位：100ms）
+ 240   1        WARNING_LED_PIN = 0;
+C51 COMPILER V9.60.7.0   MAINTASK                                                          12/25/2025 11:33:45 PAGE 5   
+
+ 241   1      
+ 242   1        while (1) {
+ 243   2          if (DOOR_SENSOR_PIN) {
+ 244   3            // 门打开（高电平），每 100ms 增加一次
+ 245   3            door_open_time++;
+ 246   3      
+ 247   3            // 超过1分钟（600 x 100ms = 60秒）
+ 248   3            if (door_open_time > 600) {
+ 249   4              BUZZER_PIN = 1;
+ 250   4              WARNING_LED_PIN = 1;
+ 251   4            }
+ 252   3      
+ 253   3            // 超过10分钟
+ 254   3            if (door_open_time > 6000) {
+ 255   4              door_timeout_flag = 1;
+ 256   4            }
+ 257   3          } else {
+ 258   3            // 门关闭，重置计时器和报警设备
+ 259   3            door_open_time = 0;
+ 260   3            BUZZER_PIN = 0;
+ 261   3            WARNING_LED_PIN = 0;
+ 262   3            door_timeout_flag = 0;
+ 263   3          }
+ 264   2      
+ 265   2          os_wait(K_TMO, 10, 0);
+ 266   2        }
+ 267   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    794    ----
+   CONSTANT SIZE    =     10    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     24      25
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      2       2
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,43 @@
+RTX51 Tiny Project Configuration Instructions
+=============================================
+
+To properly configure your Keil uVision project for RTX51 Tiny, follow these steps:
+
+1. Project Settings:
+   - Open your project in Keil uVision
+   - Go to Project -> Options for Target
+   - Under the "Target" tab, ensure:
+     * Set your memory model to "Small" (for RTX51 Tiny)
+     * Set proper crystal frequency for timer calculations
+
+2. Include Paths:
+   - Go to "C/C++" tab
+   - Add the RTX51 Tiny library path to "Include Paths"
+   - Typically located at: C:\Keil\C51\RTX51TNY\INC
+
+3. Library Configuration:
+   - Go to "C/C++" tab
+   - Check "RTX51 Tiny" in the library selection
+   - Or manually add: RTX51TNY.LIB to your project
+
+4. Configuration File:
+   - Make sure conf_tny.A51 is included in your project
+   - This file contains the RTX51 Tiny kernel configuration
+
+5. Memory Settings:
+   - Under "Memory Model" tab, select "Small" model
+   - RTX51 Tiny is designed for small memory model
+
+6. Build Options:
+   - Make sure "Create Hex File" is checked under "Output" tab
+   - This ensures proper linking with RTX51 Tiny kernel
+
+7. Important Notes:
+   - The RTX51 Tiny kernel uses Timer 0 by default for system tick
+   - Make sure Timer 0 is not used by your application
+   - The system tick interval is configured in conf_tny.A51 (default 10ms)
+
+Your main.c file has been properly configured with:
+- Four tasks (Task 0-3) using the _task_ keyword
+- Proper RTX51 Tiny function calls (os_create_task, os_wait, etc.)
+- System initialization with os_start_system()
